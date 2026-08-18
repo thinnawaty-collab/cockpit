@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>HR &amp; Corporate Management Cockpit</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Segoe UI, sans-serif; margin: 0; background: #f4f5f7; color: #1a1a1a; }
+  header { background: #14213d; color: white; padding: 16px 24px; }
+  header h1 { margin: 0; font-size: 18px; }
+  .hidden { display: none !important; }
+  #authScreen { max-width: 420px; margin: 80px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 1px 6px rgba(0,0,0,0.15); }
+  #authScreen h2 { margin-top: 0; }
+  #authScreen input { width: 100%; padding: 10px; font-size: 14px; margin: 8px 0 16px 0; border: 1px solid #ccc; border-radius: 4px; }
+  .btn { background: #14213d; color: white; border: none; border-radius: 4px; padding: 10px 18px; cursor: pointer; font-size: 14px; }
+  .btn:hover { background: #1f2f5c; }
+  .btn-danger { background: #b3261e; }
+  .btn-secondary { background: #666; }
+  main { display: none; padding: 24px; max-width: 1100px; margin: 0 auto; }
+  .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+  .toolbar input[type=text] { padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; width: 240px; }
+  section { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  h2 { font-size: 14px; text-transform: uppercase; color: #666; margin-top: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #eee; }
+  tr.rosterRow { cursor: pointer; }
+  tr.rosterRow:hover { background: #f0f4ff; }
+  .status-active { color: #0a7d33; font-weight: 600; }
+  .status-former { color: #999; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: #555; margin-bottom: 4px; font-weight: 600; }
+  .field input, .field select { width: 100%; max-width: 360px; padding: 9px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; }
+  .field .error { color: #b3261e; font-size: 12px; margin-top: 4px; display: none; }
+  .actionRow { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+  .msg { padding: 10px 14px; border-radius: 4px; margin-bottom: 14px; font-size: 13px; }
+  .msg-success { background: #e6f7ea; color: #0a7d33; border: 1px solid #a3e0b3; }
+  .msg-error { background: #fde8e6; color: #b3261e; border: 1px solid #f3b3ac; }
+  #profilePanel .history-row.current { background: #e6f7ea; }
+  #profilePanel .history-row.former { color: #888; }
+  .tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: 6px; }
+  .tag-transfer { background: #fff3cd; color: #856404; }
+  .tag-rehire { background: #d1ecf1; color: #0c5460; }
+</style>
+</head>
+<body>
+
+<header><h1>HR &amp; Corporate Management Cockpit — Employee Module</h1></header>
+
+<div id="authScreen">
+  <h2 id="authTitle">Initial Setup</h2>
+  <div id="authMsg"></div>
+  <label for="passphraseInput" style="font-size:12px;color:#555;font-weight:600;">Passphrase (min 12 characters)</label>
+  <input type="password" id="passphraseInput" placeholder="Enter passphrase" />
+  <button class="btn" id="authSubmitBtn" style="width:100%;">Set Up &amp; Unlock</button>
+</div>
+
+<main id="mainApp">
+  <section>
+    <div class="toolbar">
+      <button class="btn" id="navEmployeeBtn" style="background:#0a3d91;">Employee Module</button>
+      <button class="btn btn-secondary" id="navFinanceBtn">Finance Module</button>
+      <button class="btn btn-secondary" id="navWorkBtn">Work Management</button>
+      <div style="flex:1;"></div>
+      <button class="btn btn-secondary" id="lockBtn">Lock / Close App</button>
+    </div>
+  </section>
+
+  <div id="employeeView">
+  <section>
+    <div class="toolbar">
+      <input type="text" id="searchInput" placeholder="Search employee name..." />
+      <button class="btn btn-secondary" id="searchBtn">Search</button>
+      <label style="font-size:13px;"><input type="checkbox" id="currentOnlyFilter" /> Current only</label>
+      <button class="btn" id="refreshRosterBtn">Refresh Roster</button>
+      <div style="flex:1;"></div>
+      <button class="btn" id="addPersonBtn">+ Add Person</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Employee Roster</h2>
+    <table id="rosterTable"><thead><tr><th>Name</th><th>Emp #</th><th>Company</th><th>Status</th><th>Start Date</th></tr></thead><tbody></tbody></table>
+    <div id="unhiredWrap" class="hidden" style="margin-top:16px;">
+      <h2>Not Yet Hired</h2>
+      <table id="unhiredTable"><thead><tr><th>Name</th><th></th></tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <section id="detailPanel" class="hidden">
+    <div id="detailContent"></div>
+  </section>
+  </div>
+
+  <div id="financeView" class="hidden">
+    <section>
+      <div class="toolbar">
+        <label style="font-size:13px;">Company:
+          <select id="financeCompanySelect" style="padding:6px;"></select>
+        </label>
+        <label style="font-size:13px;">Fiscal Year:
+          <input type="number" id="financeYearInput" value="2026" style="width:80px;padding:6px;" />
+        </label>
+        <button class="btn btn-secondary" id="financeRefreshBtn">Refresh</button>
+        <div style="flex:1;"></div>
+        <button class="btn" id="addExpenseBtn">+ Add Expense</button>
+        <button class="btn" id="addBudgetBtn">+ Add Budget</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Expenses</h2>
+      <table id="expenseTable"><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead><tbody></tbody></table>
+    </section>
+
+    <section>
+      <h2>Budgets — Budget vs Actual</h2>
+      <table id="budgetTable"><thead><tr><th>Category</th><th>Budget</th><th>Actual</th><th>Variance</th><th>Status</th></tr></thead><tbody></tbody></table>
+    </section>
+
+    <section id="financeDetailPanel" class="hidden">
+      <div id="financeDetailContent"></div>
+    </section>
+  </div>
+
+  <div id="workView" class="hidden">
+    <section>
+      <h2>Quick Capture</h2>
+      <div id="captureMsg"></div>
+      <div class="field" style="max-width:600px;">
+        <label>What needs to be done?</label>
+        <input type="text" id="captureTitle" placeholder="Type a thought or action..." />
+        <div class="error" id="captureTitleErr">Please enter something to capture.</div>
+      </div>
+      <div class="actionRow"><button class="btn" id="captureBtn">Capture</button></div>
+    </section>
+
+    <section>
+      <h2>Inbox</h2>
+      <table id="inboxTable"><thead><tr><th>Title</th><th>Captured</th><th></th></tr></thead><tbody></tbody></table>
+    </section>
+
+    <section>
+      <div class="toolbar">
+        <input type="text" id="taskSearchInput" placeholder="Search tasks..." />
+        <button class="btn btn-secondary" id="taskSearchBtn">Search</button>
+        <select id="taskFilterSelect" style="padding:8px;">
+          <option value="All">All</option>
+          <option value="Open">Open</option>
+          <option value="InProgress">In Progress</option>
+          <option value="Completed">Completed</option>
+          <option value="Cancelled">Cancelled</option>
+          <option value="Overdue">Overdue</option>
+          <option value="DueToday">Due Today</option>
+          <option value="DueThisWeek">Due This Week</option>
+        </select>
+        <select id="taskSortSelect" style="padding:8px;">
+          <option value="DueDate">Sort: Due Date</option>
+          <option value="Priority">Sort: Priority</option>
+          <option value="CreatedDate">Sort: Created Date</option>
+          <option value="UpdatedDate">Sort: Updated Date</option>
+        </select>
+        <button class="btn btn-secondary" id="taskRefreshBtn">Refresh</button>
+        <div style="flex:1;"></div>
+        <button class="btn" id="addTaskBtn">+ Add Task</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Tasks</h2>
+      <table id="taskTable"><thead><tr><th>Title</th><th>Priority</th><th>Due Date</th><th>Status</th></tr></thead><tbody></tbody></table>
+    </section>
+
+    <section id="workDetailPanel" class="hidden">
+      <div id="workDetailContent"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const { invoke } = window.__TAURI__.core;
+
+let companies = [];
+let currentPersonId = null;
+
+function el(id) { return document.getElementById(id); }
+function show(id) { el(id).classList.remove('hidden'); }
+function hide(id) { el(id).classList.add('hidden'); }
+
+function friendlyError(raw) {
+  const s = String(raw);
+  if (s.includes('already has an open employment episode')) return 'This person already has an active job at that company. Please close it first (Resign/Transfer) before hiring again.';
+  if (s.includes('FOREIGN KEY constraint failed')) return 'The company, department, or position you selected is not valid. Please re-select.';
+  if (s.includes('UNIQUE constraint failed')) return 'That Employee Number is already used at this company. Please use a different number.';
+  if (s.includes('not found or already closed')) return 'That employment record could not be found or was already closed.';
+  if (s.includes('Locked')) return 'The application is locked. Please unlock it first.';
+  if (s.includes('AuthenticationFailed')) return 'Incorrect passphrase.';
+  if (s.includes('WeakPassphrase')) return 'Passphrase must be at least 12 characters.';
+  return 'Something went wrong: ' + s;
+}
+
+function showMsg(containerId, text, ok) {
+  const c = el(containerId);
+  c.innerHTML = '<div class="msg ' + (ok ? 'msg-success' : 'msg-error') + '">' + text + '</div>';
+}
+
+// ---------- Auth ----------
+el('authSubmitBtn').addEventListener('click', async () => {
+  const pass = el('passphraseInput').value;
+  if (!pass || pass.length < 12) {
+    showMsg('authMsg', 'Passphrase must be at least 12 characters.', false);
+    return;
+  }
+  try {
+    await invoke('setup', { passphrase: pass });
+    await invoke('seed_test_reference_data');
+    companies = await invoke('list_companies');
+    for (const c of companies) {
+      await invoke('seed_finance_reference_data', { companyId: c.id });
+    }
+    el('authScreen').style.display = 'none';
+    el('mainApp').style.display = 'block';
+    await refreshRoster();
+    await refreshUnhired();
+  } catch (e) {
+    showMsg('authMsg', friendlyError(e), false);
+  }
+});
+
+el('lockBtn').addEventListener('click', async () => {
+  await invoke('lock');
+  el('mainApp').style.display = 'none';
+  el('authScreen').style.display = 'block';
+  el('authTitle').textContent = 'Unlock';
+  el('authSubmitBtn').textContent = 'Unlock';
+  el('authSubmitBtn').onclick = async () => {
+    const pass = el('passphraseInput').value;
+    try {
+      await invoke('unlock', { passphrase: pass });
+      companies = await invoke('list_companies');
+      el('authScreen').style.display = 'none';
+      el('mainApp').style.display = 'block';
+      await refreshRoster();
+      await refreshUnhired();
+    } catch (e) {
+      showMsg('authMsg', friendlyError(e), false);
+    }
+  };
+});
+
+// ---------- Roster ----------
+async function refreshRoster() {
+  const currentOnly = el('currentOnlyFilter').checked;
+  const roster = await invoke('roster_list', { currentOnly });
+  const tbody = document.querySelector('#rosterTable tbody');
+  tbody.innerHTML = '';
+  for (const r of roster) {
+    const tr = document.createElement('tr');
+    tr.className = 'rosterRow';
+    tr.dataset.personId = r.person_id;
+    tr.tabIndex = 0;
+    const statusClass = r.is_current ? 'status-active' : 'status-former';
+    tr.innerHTML = '<td>' + r.full_name + '</td><td>' + r.employee_number + '</td><td>' +
+      (companies.find(c => c.id === r.company_id)?.name || r.company_id.slice(0,8)) + '</td><td class="' + statusClass + '">' +
+      r.employment_status + '</td><td>' + r.start_date + '</td>';
+    tr.addEventListener('click', () => openProfile(r.person_id));
+    tr.addEventListener('keydown', (e) => { if (e.key === 'Enter') openProfile(r.person_id); });
+    tbody.appendChild(tr);
+  }
+}
+
+async function refreshUnhired() {
+  const list = await invoke('list_unhired_persons');
+  const tbody = document.querySelector('#unhiredTable tbody');
+  tbody.innerHTML = '';
+  if (list.length === 0) { hide('unhiredWrap'); return; }
+  show('unhiredWrap');
+  for (const p of list) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + p.name + '</td><td><button class="btn hireBtn" data-person="' + p.id + '">Hire</button></td>';
+    tbody.appendChild(tr);
+  }
+  document.querySelectorAll('.hireBtn').forEach(btn => {
+    btn.addEventListener('click', () => showHireForm(btn.dataset.person));
+  });
+}
+
+el('refreshRosterBtn').addEventListener('click', async () => { await refreshRoster(); await refreshUnhired(); });
+el('currentOnlyFilter').addEventListener('change', refreshRoster);
+el('searchBtn').addEventListener('click', async () => {
+  const q = el('searchInput').value.trim();
+  if (!q) { await refreshRoster(); return; }
+  const ids = await invoke('search_employees', { query: q });
+  const roster = await invoke('roster_list', { currentOnly: false });
+  const tbody = document.querySelector('#rosterTable tbody');
+  tbody.innerHTML = '';
+  for (const r of roster.filter(r => ids.includes(r.person_id))) {
+    const tr = document.createElement('tr');
+    tr.className = 'rosterRow';
+    tr.dataset.personId = r.person_id;
+    const statusClass = r.is_current ? 'status-active' : 'status-former';
+    tr.innerHTML = '<td>' + r.full_name + '</td><td>' + r.employee_number + '</td><td>' +
+      (companies.find(c => c.id === r.company_id)?.name || '') + '</td><td class="' + statusClass + '">' +
+      r.employment_status + '</td><td>' + r.start_date + '</td>';
+    tr.addEventListener('click', () => openProfile(r.person_id));
+    tbody.appendChild(tr);
+  }
+});
+
+// ---------- Add Person ----------
+el('addPersonBtn').addEventListener('click', () => {
+  hide('rosterTable');
+  el('detailContent').innerHTML =
+    '<h2>Add Person</h2>' +
+    '<div id="addPersonMsg"></div>' +
+    '<div class="field"><label>Full Name</label><input type="text" id="newPersonName" /><div class="error" id="newPersonNameErr">Full name is required.</div></div>' +
+    '<div class="actionRow">' +
+      '<button class="btn" id="savePersonBtn">Save</button>' +
+      '<button class="btn btn-secondary" id="cancelAddPersonBtn">Cancel</button>' +
+    '</div>';
+  show('detailPanel');
+  el('savePersonBtn').addEventListener('click', async () => {
+    const name = el('newPersonName').value.trim();
+    if (!name) { el('newPersonNameErr').style.display = 'block'; return; }
+    el('newPersonNameErr').style.display = 'none';
+    try {
+      await invoke('create_person_only', { req: { full_name: name } });
+      showMsg('addPersonMsg', 'Person "' + name + '" created. They now appear under "Not Yet Hired" below.', true);
+      await refreshUnhired();
+    } catch (e) {
+      showMsg('addPersonMsg', friendlyError(e), false);
+    }
+  });
+  el('cancelAddPersonBtn').addEventListener('click', closeDetail);
+});
+
+function closeDetail() {
+  hide('detailPanel');
+  show('rosterTable');
+}
+
+// ---------- Hire ----------
+async function showHireForm(personId) {
+  const companyOptions = companies.map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
+  el('detailContent').innerHTML =
+    '<h2>Hire</h2>' +
+    '<div id="hireMsg"></div>' +
+    '<div class="field"><label>Company</label><select id="hireCompany">' + companyOptions + '</select></div>' +
+    '<div class="field"><label>Department</label><select id="hireDept"></select></div>' +
+    '<div class="field"><label>Position</label><select id="hirePos"></select></div>' +
+    '<div class="field"><label>Employee Number</label><input type="text" id="hireEmpNum" /><div class="error" id="hireEmpNumErr">Employee number is required.</div></div>' +
+    '<div class="field"><label>Start Date</label><input type="date" id="hireStartDate" /><div class="error" id="hireStartDateErr">Start date is required.</div></div>' +
+    '<div class="actionRow"><button class="btn" id="submitHireBtn">Save</button><button class="btn btn-secondary" id="cancelHireBtn">Cancel</button></div>';
+  show('detailPanel');
+  hide('rosterTable');
+  await populateDeptPos('hireCompany', 'hireDept', 'hirePos');
+  el('hireCompany').addEventListener('change', () => populateDeptPos('hireCompany', 'hireDept', 'hirePos'));
+  el('cancelHireBtn').addEventListener('click', closeDetail);
+  el('submitHireBtn').addEventListener('click', async () => {
+    const empNum = el('hireEmpNum').value.trim();
+    const startDate = el('hireStartDate').value;
+    let valid = true;
+    if (!empNum) { el('hireEmpNumErr').style.display = 'block'; valid = false; } else { el('hireEmpNumErr').style.display = 'none'; }
+    if (!startDate) { el('hireStartDateErr').style.display = 'block'; valid = false; } else { el('hireStartDateErr').style.display = 'none'; }
+    if (!valid) return;
+    try {
+      await invoke('hire_only', { req: {
+        person_id: personId, company_id: el('hireCompany').value,
+        employee_number: empNum, start_date: startDate,
+        department_id: el('hireDept').value || null, position_id: el('hirePos').value || null,
+      }});
+      showMsg('hireMsg', 'Hired successfully.', true);
+      await refreshRoster(); await refreshUnhired();
+      setTimeout(() => openProfile(personId), 600);
+    } catch (e) {
+      showMsg('hireMsg', friendlyError(e), false);
+    }
+  });
+}
+
+async function populateDeptPos(companySelectId, deptSelectId, posSelectId) {
+  const companyId = el(companySelectId).value;
+  const depts = await invoke('list_departments', { companyId });
+  const poss = await invoke('list_positions', { companyId });
+  el(deptSelectId).innerHTML = '<option value="">(none)</option>' + depts.map(d => '<option value="' + d.id + '">' + d.name + '</option>').join('');
+  el(posSelectId).innerHTML = '<option value="">(none)</option>' + poss.map(p => '<option value="' + p.id + '">' + p.name + '</option>').join('');
+}
+
+// ---------- Employee Profile ----------
+async function openProfile(personId) {
+  currentPersonId = personId;
+  const p = await invoke('employee_profile', { personId });
+  const isCurrent = p.current.length > 0;
+
+  let html = '<h2>Employee Profile — ' + p.full_name + '</h2>';
+  html += '<div id="profileMsg"></div>';
+  html += '<h3 style="font-size:13px;color:#666;">Current Employment</h3>';
+  if (isCurrent) {
+    const c = p.current[0];
+    html += '<table><tr><td>Company</td><td>' + (companies.find(x=>x.id===c.company_id)?.name || c.company_id) + '</td></tr>' +
+      '<tr><td>Employee Number</td><td>' + c.employee_number + '</td></tr>' +
+      '<tr><td>Start Date</td><td>' + c.start_date + '</td></tr>' +
+      '<tr><td>Status</td><td class="status-active">' + c.employment_status + '</td></tr></table>';
+  } else {
+    html += '<p style="color:#999;">No current employment (Former employee).</p>';
+  }
+
+  html += '<h3 style="font-size:13px;color:#666;margin-top:20px;">Employment History</h3><table id="profileHistory"><thead><tr><th>Company</th><th>Emp #</th><th>Start</th><th>End</th><th>Status</th><th></th></tr></thead><tbody>';
+  for (const ep of p.history) {
+    let tag = '';
+    if (ep.movement_type === 'Internal Transfer In') tag = '<span class="tag tag-transfer">Transfer</span>';
+    if (ep.movement_type === 'Rehire') tag = '<span class="tag tag-rehire">Rehire</span>';
+    const rowClass = ep.end_date ? 'former' : 'current';
+    html += '<tr class="history-row ' + rowClass + '"><td>' + (companies.find(x=>x.id===ep.company_id)?.name || ep.company_id.slice(0,8)) +
+      '</td><td>' + ep.employee_number + '</td><td>' + ep.start_date + '</td><td>' + (ep.end_date || '—') +
+      '</td><td>' + ep.employment_status + tag + '</td><td></td></tr>';
+  }
+  html += '</tbody></table>';
+
+  html += '<div class="actionRow">';
+  if (isCurrent) {
+    html += '<button class="btn" id="transferBtn">Transfer</button>';
+    html += '<button class="btn" id="promoteBtn">Promote / Change Position</button>';
+    html += '<button class="btn btn-danger" id="resignBtn">Resign</button>';
+  } else {
+    html += '<button class="btn" id="rehireBtn">Rehire</button>';
+  }
+  html += '<button class="btn btn-secondary" id="closeProfileBtn">Close</button>';
+  html += '</div>';
+
+  el('detailContent').innerHTML = html;
+  show('detailPanel');
+  hide('rosterTable');
+
+  el('closeProfileBtn').addEventListener('click', async () => { closeDetail(); await refreshRoster(); await refreshUnhired(); });
+
+  if (isCurrent) {
+    el('transferBtn').addEventListener('click', () => showTransferForm(p));
+    el('promoteBtn').addEventListener('click', () => showPromoteForm(p));
+    el('resignBtn').addEventListener('click', () => showResignForm(p));
+  } else {
+    el('rehireBtn').addEventListener('click', () => showRehireForm(p));
+  }
+}
+
+// ---------- Transfer ----------
+function showTransferForm(profile) {
+  const currentEp = profile.current[0];
+  const companyOptions = companies.filter(c => c.id !== currentEp.company_id)
+    .map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
+  el('detailContent').innerHTML =
+    '<h2>Transfer — ' + profile.full_name + '</h2>' +
+    '<div id="transferMsg"></div>' +
+    '<div class="field"><label>Destination Company</label><select id="transferCompany">' + companyOptions + '</select><div class="error" id="transferCompanyErr">Destination company is required.</div></div>' +
+    '<div class="field"><label>New Employee Number</label><input type="text" id="transferEmpNum" /><div class="error" id="transferEmpNumErr">New employee number is required.</div></div>' +
+    '<div class="field"><label>Transfer Date</label><input type="date" id="transferDate" /><div class="error" id="transferDateErr">Transfer date is required.</div></div>' +
+    '<div class="actionRow"><button class="btn" id="submitTransferBtn">Confirm Transfer</button><button class="btn btn-secondary" id="cancelTransferBtn">Cancel</button></div>';
+  show('detailPanel');
+  el('cancelTransferBtn').addEventListener('click', () => openProfile(currentPersonId));
+  el('submitTransferBtn').addEventListener('click', async () => {
+    const destCompany = el('transferCompany').value;
+    const empNum = el('transferEmpNum').value.trim();
+    const date = el('transferDate').value;
+    let valid = true;
+    if (!destCompany) { el('transferCompanyErr').style.display='block'; valid=false; } else { el('transferCompanyErr').style.display='none'; }
+    if (!empNum) { el('transferEmpNumErr').style.display='block'; valid=false; } else { el('transferEmpNumErr').style.display='none'; }
+    if (!date) { el('transferDateErr').style.display='block'; valid=false; } else { el('transferDateErr').style.display='none'; }
+    if (!valid) return;
+    try {
+      await invoke('transfer', { req: {
+        person_id: currentPersonId, from_episode_id: currentEp.id, transfer_date: date,
+        to_company_id: destCompany, new_employee_number: empNum, department_id: null, position_id: null
+      }});
+      showMsg('transferMsg', 'Transfer completed.', true);
+      setTimeout(() => openProfile(currentPersonId), 600);
+    } catch (e) { showMsg('transferMsg', friendlyError(e), false); }
+  });
+}
+
+// ---------- Resign ----------
+function showResignForm(profile) {
+  const currentEp = profile.current[0];
+  el('detailContent').innerHTML =
+    '<h2>Resign — ' + profile.full_name + '</h2>' +
+    '<div id="resignMsg"></div>' +
+    '<div class="field"><label>Resignation Date</label><input type="date" id="resignDate" /><div class="error" id="resignDateErr">Resignation date is required.</div></div>' +
+    '<p style="color:#b3261e;font-size:13px;">This will close the current employment. This action requires confirmation.</p>' +
+    '<div class="actionRow"><button class="btn btn-danger" id="confirmResignBtn">Confirm Resignation</button><button class="btn btn-secondary" id="cancelResignBtn">Cancel</button></div>';
+  show('detailPanel');
+  el('cancelResignBtn').addEventListener('click', () => openProfile(currentPersonId));
+  el('confirmResignBtn').addEventListener('click', async () => {
+    const date = el('resignDate').value;
+    if (!date) { el('resignDateErr').style.display='block'; return; }
+    try {
+      await invoke('resign', { req: { episode_id: currentEp.id, end_date: date } });
+      showMsg('resignMsg', 'Resignation recorded.', true);
+      setTimeout(() => openProfile(currentPersonId), 600);
+    } catch (e) { showMsg('resignMsg', friendlyError(e), false); }
+  });
+}
+
+// ---------- Rehire ----------
+function showRehireForm(profile) {
+  const companyOptions = companies.map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
+  el('detailContent').innerHTML =
+    '<h2>Rehire — ' + profile.full_name + '</h2>' +
+    '<div id="rehireMsg"></div>' +
+    '<p style="color:#0c5460;font-size:13px;">This creates a NEW Employment Episode. Previous history is preserved.</p>' +
+    '<div class="field"><label>Company</label><select id="rehireCompany">' + companyOptions + '</select></div>' +
+    '<div class="field"><label>Employee Number</label><input type="text" id="rehireEmpNum" /><div class="error" id="rehireEmpNumErr">Employee number is required.</div></div>' +
+    '<div class="field"><label>Start Date</label><input type="date" id="rehireStartDate" /><div class="error" id="rehireStartDateErr">Start date is required.</div></div>' +
+    '<div class="actionRow"><button class="btn" id="submitRehireBtn">Confirm Rehire</button><button class="btn btn-secondary" id="cancelRehireBtn">Cancel</button></div>';
+  show('detailPanel');
+  el('cancelRehireBtn').addEventListener('click', () => openProfile(currentPersonId));
+  el('submitRehireBtn').addEventListener('click', async () => {
+    const empNum = el('rehireEmpNum').value.trim();
+    const date = el('rehireStartDate').value;
+    let valid = true;
+    if (!empNum) { el('rehireEmpNumErr').style.display='block'; valid=false; } else { el('rehireEmpNumErr').style.display='none'; }
+    if (!date) { el('rehireStartDateErr').style.display='block'; valid=false; } else { el('rehireStartDateErr').style.display='none'; }
+    if (!valid) return;
+    try {
+      await invoke('rehire', { req: { person_id: currentPersonId, company_id: el('rehireCompany').value, employee_number: empNum, start_date: date, department_id: null, position_id: null } });
+      showMsg('rehireMsg', 'Rehired — new Employment Episode created.', true);
+      setTimeout(() => openProfile(currentPersonId), 600);
+    } catch (e) { showMsg('rehireMsg', friendlyError(e), false); }
+  });
+}
+
+// ---------- Promote ----------
+async function showPromoteForm(profile) {
+  const currentEp = profile.current[0];
+  el('detailContent').innerHTML =
+    '<h2>Promote / Change Position — ' + profile.full_name + '</h2>' +
+    '<div id="promoteMsg"></div>' +
+    '<p style="color:#0c5460;font-size:13px;">This updates the CURRENT employment episode. It does NOT create a new episode.</p>' +
+    '<div class="field"><label>New Position</label><select id="promotePos"></select><div class="error" id="promotePosErr">Please select a new position.</div></div>' +
+    '<div class="field"><label>Effective Date</label><input type="date" id="promoteDate" /><div class="error" id="promoteDateErr">Effective date is required.</div></div>' +
+    '<div class="actionRow"><button class="btn" id="submitPromoteBtn">Confirm Promotion</button><button class="btn btn-secondary" id="cancelPromoteBtn">Cancel</button></div>';
+  show('detailPanel');
+  const poss = await invoke('list_positions', { companyId: currentEp.company_id });
+  el('promotePos').innerHTML = '<option value="">(select)</option>' + poss.filter(p => p.id !== currentEp.position_id).map(p => '<option value="' + p.id + '">' + p.name + '</option>').join('');
+  el('cancelPromoteBtn').addEventListener('click', () => openProfile(currentPersonId));
+  el('submitPromoteBtn').addEventListener('click', async () => {
+    const posId = el('promotePos').value;
+    const date = el('promoteDate').value;
+    let valid = true;
+    if (!posId) { el('promotePosErr').style.display='block'; valid=false; } else { el('promotePosErr').style.display='none'; }
+    if (!date) { el('promoteDateErr').style.display='block'; valid=false; } else { el('promoteDateErr').style.display='none'; }
+    if (!valid) return;
+    try {
+      await invoke('promote', { req: { episode_id: currentEp.id, effective_date: date, new_department_id: null, new_position_id: posId } });
+      showMsg('promoteMsg', 'Promotion recorded. Employment Episode count unchanged.', true);
+      setTimeout(() => openProfile(currentPersonId), 600);
+    } catch (e) { showMsg('promoteMsg', friendlyError(e), false); }
+  });
+}
+
+// ============================================================================
+// Stage B3.5 — Finance Module (Expense + Budget, real forms, real invoke())
+// ============================================================================
+
+function centsToDisplay(cents) {
+  const v = (cents / 100).toFixed(2);
+  const parts = v.split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return parts.join('.');
+}
+
+function displayToCents(str) {
+  const n = parseFloat(str.replace(/,/g, ''));
+  if (isNaN(n)) return null;
+  return Math.round(n * 100);
+}
+
+el('navEmployeeBtn').addEventListener('click', () => {
+  el('employeeView').classList.remove('hidden');
+  el('financeView').classList.add('hidden');
+  el('workView').classList.add('hidden');
+  el('navEmployeeBtn').style.background = '#0a3d91';
+  el('navFinanceBtn').style.background = '#666';
+  el('navWorkBtn').style.background = '#666';
+});
+el('navFinanceBtn').addEventListener('click', async () => {
+  el('employeeView').classList.add('hidden');
+  el('financeView').classList.remove('hidden');
+  el('workView').classList.add('hidden');
+  el('navEmployeeBtn').style.background = '#666';
+  el('navFinanceBtn').style.background = '#0a3d91';
+  el('navWorkBtn').style.background = '#666';
+  await initFinanceCompanySelect();
+  await refreshExpenses();
+  await refreshBudgets();
+});
+
+el('navWorkBtn').addEventListener('click', async () => {
+  el('employeeView').classList.add('hidden');
+  el('financeView').classList.add('hidden');
+  el('workView').classList.remove('hidden');
+  el('navEmployeeBtn').style.background = '#666';
+  el('navFinanceBtn').style.background = '#666';
+  el('navWorkBtn').style.background = '#0a3d91';
+  await refreshInbox();
+  await refreshTasks();
+});
+
+async function initFinanceCompanySelect() {
+  const sel = el('financeCompanySelect');
+  if (sel.options.length === 0) {
+    sel.innerHTML = companies.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  }
+}
+
+function financeCompanyId() { return el('financeCompanySelect').value; }
+function financeYear() { return parseInt(el('financeYearInput').value, 10); }
+
+async function refreshExpenses() {
+  const rows = await invoke('list_expenses', { req: {
+    company_id: financeCompanyId(), department_id: null, category_id: null,
+    fiscal_year: financeYear(), month: null
+  }});
+  const cats = await invoke('list_expense_categories');
+  const tbody = document.querySelector('#expenseTable tbody');
+  tbody.innerHTML = '';
+  for (const r of rows) {
+    const catName = (cats.find(c => c.id === r.category_id) || {}).name || r.category_id.slice(0,8);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.expense_date}</td><td>${catName}</td><td>${r.description}</td>` +
+      `<td>${centsToDisplay(r.amount_cents)}</td><td>${r.status}</td>`;
+    tbody.appendChild(tr);
+  }
+  return rows.length;
+}
+
+async function refreshBudgets() {
+  const budgets = await invoke('list_budgets', { companyId: financeCompanyId(), fiscalYear: financeYear() });
+  const tbody = document.querySelector('#budgetTable tbody');
+  tbody.innerHTML = '';
+  for (const b of budgets) {
+    const bva = await invoke('budget_vs_actual', { budgetId: b.id });
+    const tr = document.createElement('tr');
+    let statusColor = '#666';
+    if (bva.status === 'OverBudget') statusColor = '#b3261e';
+    else if (bva.status === 'UnderBudget') statusColor = '#0a7d33';
+    else if (bva.status === 'OnBudget') statusColor = '#856404';
+    tr.innerHTML = `<td>${b.category_name}</td><td>${centsToDisplay(bva.budget_cents)}</td>` +
+      `<td>${centsToDisplay(bva.actual_cents)}</td><td>${centsToDisplay(bva.variance_cents)}</td>` +
+      `<td style="color:${statusColor};font-weight:600;">${bva.status_label}</td>`;
+    tbody.appendChild(tr);
+  }
+  return budgets.length;
+}
+
+el('financeRefreshBtn').addEventListener('click', async () => { await refreshExpenses(); await refreshBudgets(); });
+
+function closeFinanceDetail() {
+  hide('financeDetailPanel');
+}
+
+// ---------- Add Expense ----------
+el('addExpenseBtn').addEventListener('click', async () => {
+  const cats = await invoke('list_expense_categories');
+  const ccs = await invoke('list_cost_centers', { companyId: financeCompanyId() });
+  const budgets = await invoke('list_budgets', { companyId: financeCompanyId(), fiscalYear: financeYear() });
+
+  el('financeDetailContent').innerHTML =
+    '<h2>Add Expense</h2>' +
+    '<div id="expenseMsg"></div>' +
+    '<div class="field"><label>Category</label><select id="expCategory">' +
+      cats.map(c => `<option value="${c.id}">${c.name}</option>`).join('') + '</select></div>' +
+    '<div class="field"><label>Cost Center</label><select id="expCostCenter"><option value="">(none)</option>' +
+      ccs.map(c => `<option value="${c.id}">${c.name}</option>`).join('') + '</select></div>' +
+    '<div class="field"><label>Link to Budget (optional)</label><select id="expBudget"><option value="">(none)</option>' +
+      budgets.map(b => `<option value="${b.id}">${b.category_name}</option>`).join('') + '</select></div>' +
+    '<div class="field"><label>Description</label><input type="text" id="expDescription" /><div class="error" id="expDescriptionErr">Description is required.</div></div>' +
+    '<div class="field"><label>Amount (THB)</label><input type="text" id="expAmount" placeholder="0.00" /><div class="error" id="expAmountErr">A valid, non-negative amount is required.</div></div>' +
+    '<div class="field"><label>Vendor / Payee</label><input type="text" id="expVendor" /></div>' +
+    '<div class="field"><label>Expense Date</label><input type="date" id="expDate" /><div class="error" id="expDateErr">Expense date is required.</div></div>' +
+    '<div class="actionRow"><button class="btn" id="submitExpenseBtn">Save</button><button class="btn btn-secondary" id="cancelExpenseBtn">Cancel</button></div>';
+  show('financeDetailPanel');
+
+  el('cancelExpenseBtn').addEventListener('click', closeFinanceDetail);
+  el('submitExpenseBtn').addEventListener('click', async () => {
+    const desc = el('expDescription').value.trim();
+    const amountStr = el('expAmount').value.trim();
+    const date = el('expDate').value;
+    let valid = true;
+    if (!desc) { el('expDescriptionErr').style.display = 'block'; valid = false; } else { el('expDescriptionErr').style.display = 'none'; }
+    const cents = displayToCents(amountStr);
+    if (cents === null || cents < 0) { el('expAmountErr').style.display = 'block'; valid = false; } else { el('expAmountErr').style.display = 'none'; }
+    if (!date) { el('expDateErr').style.display = 'block'; valid = false; } else { el('expDateErr').style.display = 'none'; }
+    if (!valid) return;
+
+    const [y, m] = date.split('-');
+    try {
+      await invoke('create_expense', { req: {
+        expense_date: date, fiscal_year: parseInt(y,10), month: parseInt(m,10),
+        company_id: financeCompanyId(), department_id: null,
+        cost_center_id: el('expCostCenter').value || null,
+        category_id: el('expCategory').value,
+        description: desc, amount_cents: cents,
+        vendor_payee: el('expVendor').value || null,
+        budget_id: el('expBudget').value || null,
+      }});
+      showMsg('expenseMsg', 'Expense saved.', true);
+      await refreshExpenses(); await refreshBudgets();
+    } catch (e) {
+      showMsg('expenseMsg', friendlyError(e), false);
+    }
+  });
+});
+
+// ---------- Add Budget ----------
+el('addBudgetBtn').addEventListener('click', async () => {
+  const cats = await invoke('list_expense_categories');
+  el('financeDetailContent').innerHTML =
+    '<h2>Add Budget</h2>' +
+    '<div id="budgetMsg"></div>' +
+    '<div class="field"><label>Category</label><select id="budCategory">' +
+      cats.map(c => `<option value="${c.id}">${c.name}</option>`).join('') + '</select></div>' +
+    '<div class="field"><label>Fiscal Year</label><input type="number" id="budYear" value="' + financeYear() + '" /></div>' +
+    '<div class="field"><label>Annual Budget Amount (THB)</label><input type="text" id="budAmount" placeholder="0.00" /><div class="error" id="budAmountErr">A valid, non-negative amount is required.</div></div>' +
+    '<div class="actionRow"><button class="btn" id="submitBudgetBtn">Save</button><button class="btn btn-secondary" id="cancelBudgetBtn">Cancel</button></div>';
+  show('financeDetailPanel');
+
+  el('cancelBudgetBtn').addEventListener('click', closeFinanceDetail);
+  el('submitBudgetBtn').addEventListener('click', async () => {
+    const amountStr = el('budAmount').value.trim();
+    const cents = displayToCents(amountStr);
+    if (cents === null || cents < 0) { el('budAmountErr').style.display = 'block'; return; }
+    el('budAmountErr').style.display = 'none';
+    try {
+      await invoke('create_budget', { req: {
+        fiscal_year: parseInt(el('budYear').value, 10),
+        company_id: financeCompanyId(), department_id: null, cost_center_id: null,
+        category_id: el('budCategory').value, annual_amount_cents: cents,
+        owner: null, monthly_amounts_cents: null,
+      }});
+      showMsg('budgetMsg', 'Budget created.', true);
+      await refreshBudgets();
+    } catch (e) {
+      showMsg('budgetMsg', friendlyError(e), false);
+    }
+  });
+});
+
+// ============================================================================
+// Stage C1 — Work Management (Quick Capture + Task)
+// ============================================================================
+
+function closeWorkDetail() { hide('workDetailPanel'); }
+
+async function refreshInbox() {
+  const items = await invoke('list_inbox');
+  const tbody = document.querySelector('#inboxTable tbody');
+  tbody.innerHTML = '';
+  for (const c of items) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${c.title}</td><td>${c.created_at}</td><td>` +
+      `<button class="btn convertBtn" data-id="${c.id}" style="margin-right:6px;">Convert to Task</button>` +
+      `<button class="btn btn-secondary archiveBtn" data-id="${c.id}">Archive</button></td>`;
+    tbody.appendChild(tr);
+  }
+  document.querySelectorAll('.convertBtn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      try {
+        const taskId = await invoke('convert_capture_to_task', { captureId: btn.dataset.id });
+        await refreshInbox();
+        await refreshTasks();
+        openTaskDetail(taskId);
+      } catch (e) { alert(friendlyError(e)); }
+    });
+  });
+  document.querySelectorAll('.archiveBtn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await invoke('archive_capture', { captureId: btn.dataset.id });
+      await refreshInbox();
+    });
+  });
+  return items.length;
+}
+
+el('captureBtn').addEventListener('click', async () => {
+  const title = el('captureTitle').value.trim();
+  if (!title) { el('captureTitleErr').style.display = 'block'; return; }
+  el('captureTitleErr').style.display = 'none';
+  try {
+    await invoke('create_capture', { req: { title, company_id: null, category: null, priority: null, due_date: null, note: null } });
+    el('captureTitle').value = '';
+    showMsg('captureMsg', 'Captured.', true);
+    await refreshInbox();
+  } catch (e) {
+    showMsg('captureMsg', friendlyError(e), false);
+  }
+});
+
+function taskStatusIcon(status, overdue) {
+  if (status === 'Completed') return '🟢';
+  if (status === 'Cancelled') return '⚪';
+  if (overdue) return '🔴';
+  return '🟡';
+}
+
+async function refreshTasks() {
+  const filter = el('taskFilterSelect').value;
+  const sort = el('taskSortSelect').value;
+  const rows = await invoke('list_tasks', { filter, sort });
+  renderTaskTable(rows);
+  return rows.length;
+}
+
+function renderTaskTable(rows) {
+  const tbody = document.querySelector('#taskTable tbody');
+  tbody.innerHTML = '';
+  for (const t of rows) {
+    const tr = document.createElement('tr');
+    tr.className = 'rosterRow';
+    tr.innerHTML = `<td>${taskStatusIcon(t.status, t.is_overdue)} ${t.title}</td>` +
+      `<td>${t.priority || '—'}</td><td>${t.due_date || '—'}${t.is_overdue ? ' (Overdue)' : ''}</td><td>${t.status}</td>`;
+    tr.addEventListener('click', () => openTaskDetail(t.id));
+    tbody.appendChild(tr);
+  }
+}
+
+el('taskFilterSelect').addEventListener('change', refreshTasks);
+el('taskSortSelect').addEventListener('change', refreshTasks);
+el('taskRefreshBtn').addEventListener('click', refreshTasks);
+el('taskSearchBtn').addEventListener('click', async () => {
+  const q = el('taskSearchInput').value.trim();
+  if (!q) { await refreshTasks(); return; }
+  const rows = await invoke('search_tasks', { query: q });
+  renderTaskTable(rows);
+});
+
+el('addTaskBtn').addEventListener('click', () => {
+  el('workDetailContent').innerHTML =
+    '<h2>Add Task</h2><div id="addTaskMsg"></div>' +
+    '<div class="field"><label>Title</label><input type="text" id="newTaskTitle" /><div class="error" id="newTaskTitleErr">Title is required.</div></div>' +
+    '<div class="field"><label>Priority</label><select id="newTaskPriority"><option value="">(none)</option>' +
+      '<option value="Low">Low</option><option value="Normal">Normal</option><option value="High">High</option><option value="Urgent">Urgent</option></select></div>' +
+    '<div class="field"><label>Due Date</label><input type="date" id="newTaskDueDate" /></div>' +
+    '<div class="actionRow"><button class="btn" id="submitTaskBtn">Save</button><button class="btn btn-secondary" id="cancelTaskBtn">Cancel</button></div>';
+  show('workDetailPanel');
+  el('cancelTaskBtn').addEventListener('click', closeWorkDetail);
+  el('submitTaskBtn').addEventListener('click', async () => {
+    const title = el('newTaskTitle').value.trim();
+    if (!title) { el('newTaskTitleErr').style.display = 'block'; return; }
+    el('newTaskTitleErr').style.display = 'none';
+    try {
+      await invoke('create_task', { req: {
+        title, company_id: null, department_id: null, category: null,
+        priority: el('newTaskPriority').value || null,
+        due_date: el('newTaskDueDate').value || null, notes: null,
+      }});
+      showMsg('addTaskMsg', 'Task created.', true);
+      await refreshTasks();
+    } catch (e) { showMsg('addTaskMsg', friendlyError(e), false); }
+  });
+});
+
+async function openTaskDetail(taskId) {
+  const t = await invoke('get_task_detail', { taskId });
+  let html = '<h2>Task — ' + t.title + '</h2><div id="taskDetailMsg"></div>';
+  html += '<table>';
+  html += '<tr><td>Status</td><td>' + t.status + (t.is_overdue ? ' <span style="color:#b3261e;">(Overdue)</span>' : '') + '</td></tr>';
+  html += '<tr><td>Description</td><td>' + (t.notes || '—') + '</td></tr>';
+  html += '<tr><td>Priority</td><td>' + (t.priority || '—') + '</td></tr>';
+  html += '<tr><td>Due Date</td><td>' + (t.due_date || '—') + '</td></tr>';
+  html += '<tr><td>Completed Date</td><td>' + (t.completed_date || '—') + '</td></tr>';
+  html += '<tr><td>Created</td><td>' + t.created_at + '</td></tr>';
+  html += '<tr><td>Updated</td><td>' + t.updated_at + '</td></tr>';
+  html += '<tr><td>Company</td><td>' + (t.company_name || '—') + '</td></tr>';
+  html += '<tr><td>Department</td><td>' + (t.department_name || '—') + '</td></tr>';
+  html += '<tr><td>Related Person</td><td>' + (t.related_person_name || '—') + '</td></tr>';
+  html += '<tr><td>Source</td><td>' + (t.source_capture_id ? 'Quick Capture' : '—') + '</td></tr></table>';
+  html += '<div class="actionRow">';
+  html += '<button class="btn" id="editTaskBtn">Edit</button>';
+  if (t.status === 'Open') html += '<button class="btn" id="startTaskBtn">Start (In Progress)</button>';
+  if (t.status === 'Open' || t.status === 'In Progress') {
+    html += '<button class="btn" id="completeTaskBtn">Complete</button>';
+    html += '<button class="btn btn-danger" id="cancelTaskDetailBtn">Cancel</button>';
+  }
+  if (t.status === 'Completed' || t.status === 'Cancelled') html += '<button class="btn" id="reopenTaskBtn">Reopen</button>';
+  html += '<button class="btn btn-secondary" id="closeTaskDetailBtn">Close</button></div>';
+
+  el('workDetailContent').innerHTML = html;
+  show('workDetailPanel');
+
+  el('closeTaskDetailBtn').addEventListener('click', async () => { closeWorkDetail(); await refreshTasks(); });
+  const rerender = async () => { await refreshTasks(); await openTaskDetail(taskId); };
+  if (el('startTaskBtn')) el('startTaskBtn').addEventListener('click', async () => { await invoke('mark_in_progress', { taskId }); await rerender(); });
+  if (el('completeTaskBtn')) el('completeTaskBtn').addEventListener('click', async () => { await invoke('complete_task', { taskId }); await rerender(); });
+  if (el('cancelTaskDetailBtn')) el('cancelTaskDetailBtn').addEventListener('click', async () => { await invoke('cancel_task', { taskId }); await rerender(); });
+  if (el('reopenTaskBtn')) el('reopenTaskBtn').addEventListener('click', async () => { await invoke('reopen_task', { taskId }); await rerender(); });
+  el('editTaskBtn').addEventListener('click', () => showEditTaskForm(t));
+}
+
+function showEditTaskForm(t) {
+  el('workDetailContent').innerHTML =
+    '<h2>Edit Task</h2><div id="editTaskMsg"></div>' +
+    '<div class="field"><label>Title</label><input type="text" id="editTitle" value="' + (t.title || '').replace(/"/g,'&quot;') + '" /><div class="error" id="editTitleErr">Title is required.</div></div>' +
+    '<div class="field"><label>Description</label><input type="text" id="editNotes" value="' + (t.notes || '').replace(/"/g,'&quot;') + '" /></div>' +
+    '<div class="field"><label>Priority</label><select id="editPriority">' +
+      '<option value="">(none)</option>' +
+      ['Low','Normal','High','Urgent'].map(p => '<option value="'+p+'"'+(t.priority===p?' selected':'')+'>'+p+'</option>').join('') +
+    '</select></div>' +
+    '<div class="field"><label>Due Date</label><input type="date" id="editDueDate" value="' + (t.due_date || '') + '" /><div class="error" id="editDueDateErr">Invalid date.</div></div>' +
+    '<div class="field"><label>Company</label><select id="editCompany"><option value="">(none)</option></select></div>' +
+    '<div class="field"><label>Department</label><select id="editDepartment"><option value="">(none)</option></select></div>' +
+    '<div class="actionRow"><button class="btn" id="saveEditBtn">Save</button><button class="btn btn-secondary" id="cancelEditBtn">Cancel</button></div>';
+  show('workDetailPanel');
+
+  (async () => {
+    const companySel = el('editCompany');
+    companySel.innerHTML = '<option value="">(none)</option>' + companies.map(c => '<option value="'+c.id+'"'+(t.company_id===c.id?' selected':'')+'>'+c.name+'</option>').join('');
+    if (t.company_id) {
+      const depts = await invoke('list_departments', { companyId: t.company_id });
+      el('editDepartment').innerHTML = '<option value="">(none)</option>' + depts.map(d => '<option value="'+d.id+'"'+(t.department_id===d.id?' selected':'')+'>'+d.name+'</option>').join('');
+    }
+    companySel.addEventListener('change', async () => {
+      const depts = companySel.value ? await invoke('list_departments', { companyId: companySel.value }) : [];
+      el('editDepartment').innerHTML = '<option value="">(none)</option>' + depts.map(d => '<option value="'+d.id+'">'+d.name+'</option>').join('');
+    });
+  })();
+
+  el('cancelEditBtn').addEventListener('click', () => openTaskDetail(t.id));
+  el('saveEditBtn').addEventListener('click', async () => {
+    const title = el('editTitle').value.trim();
+    if (!title) { el('editTitleErr').style.display = 'block'; return; }
+    el('editTitleErr').style.display = 'none';
+    try {
+      await invoke('update_task_details', { req: {
+        task_id: t.id, title, notes: el('editNotes').value || null,
+        priority: el('editPriority').value || null, due_date: el('editDueDate').value || null,
+        company_id: el('editCompany').value || null, department_id: el('editDepartment').value || null,
+      }});
+      await refreshTasks();
+      await openTaskDetail(t.id);
+    } catch (e) {
+      showMsg('editTaskMsg', friendlyError(e), false);
+    }
+  });
+}
+
+// ---------- Init ----------
+(async () => {
+  try {
+    const existing = await invoke('has_existing_setup');
+    if (existing) {
+      el('authTitle').textContent = 'Unlock';
+      el('authSubmitBtn').textContent = 'Unlock';
+      el('authSubmitBtn').onclick = async () => {
+        const pass = el('passphraseInput').value;
+        try {
+          await invoke('unlock', { passphrase: pass });
+          companies = await invoke('list_companies');
+          el('authScreen').style.display = 'none';
+          el('mainApp').style.display = 'block';
+          await refreshRoster();
+          await refreshUnhired();
+        } catch (e) {
+          showMsg('authMsg', friendlyError(e), false);
+        }
+      };
+    }
+  } catch (e) { /* ignore */ }
+})();
+</script>
+</body>
+</html>

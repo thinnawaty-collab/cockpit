@@ -1,0 +1,50 @@
+name: Build Windows Installer
+
+# Triggers: runs automatically whenever code is pushed to main (including
+# the very first upload via GitHub's web "upload files" UI, which creates
+# a commit), and can also be re-run manually from the Actions tab.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "cockpit_app/src-tauri -> target"
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0.0" --locked
+
+      - name: Build Windows installer (NSIS)
+        working-directory: cockpit_app/src-tauri
+        run: cargo tauri build --bundles nsis
+
+      - name: Locate the built installer
+        id: find_installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path "cockpit_app/src-tauri/target/release/bundle/nsis" -Filter "*.exe" -Recurse | Select-Object -First 1
+          if (-not $installer) {
+            Write-Error "No .exe installer was produced by cargo tauri build — see the build log above for the real error."
+            exit 1
+          }
+          Write-Host "Found installer: $($installer.FullName)"
+          echo "installer_path=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Upload installer as build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cockpit-Windows-Installer
+          path: ${{ steps.find_installer.outputs.installer_path }}
+          if-no-files-found: error
